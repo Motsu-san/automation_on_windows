@@ -1,0 +1,2 @@
+# automation_on_windows
+windows自動化script置き場
