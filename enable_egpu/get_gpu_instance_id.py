@@ -17,23 +17,30 @@ def get_gpu_instance_id():
 
         for display in display_info:
             display_name = display.Caption
-            display_device_id = display.DeviceID
+            display_device_id = display.PNPDeviceID
             display_status = display.Status
+            print("Display Info =====")
             print(f"Device Name: {display.Name}")
             print(f"Device ID: {display.PNPDeviceID}")
             print(f"Status: {display.Status}")
 
             for video in video_info:
+                print("Video Info =====")
+                print(f"Device ID: {video.PNPDeviceID}")
                 if video.PNPDeviceID in display_device_id:
                     gpu_name = video.Caption
                     print(f"{display_name} is connected to {gpu_name}")
 
-            if (display_device_id == MY_GPU_INSTANCE_ID):
+            if MY_GPU_INSTANCE_ID in display_device_id:
                 if (display_status == 'OK'):
                     print("My GPU is connected and OK.")
                 else :
                     print("Something wrong on my GPU")
-                    return display.PNPDeviceID
+                    return display_device_id
+            else :
+                print("ID is not matched.")
+                print(f"Display Device ID:  {display_device_id}")
+                print(f"MY GPU INSTANCE ID: {MY_GPU_INSTANCE_ID}")
 
     except Exception as e:
         print(f"Error: {e}")
@@ -46,4 +53,5 @@ if __name__ == "__main__":
         sys.exit(0)  # 正常終了
     else:
         print("Can't get gpu instance id")
+        print(f"{gpu_id}")
         sys.exit(1)  # エラー終了

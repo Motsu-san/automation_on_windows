@@ -46,10 +46,9 @@ for /f "delims=" %%i in ('python get_gpu_instance_id.py') do (
     call :WriteLog "!GPU_INSTANCE_ID!"
 )
 
-if not "!GPU_INSTANCE_ID!"=="" (
+if not "!GPU_INSTANCE_ID!"=="None" (
     call :WriteLog "Successfully retrieved my GPU instance ID."
 ) else (
-    call :WriteLog "!GPU_INSTANCE_ID!"
     call :WriteLog "Failed to get my GPU instance ID."
     call :WriteLog "èàóùÇ™äÆóπÇµÇ‹ÇµÇΩÅB"
     exit /b 1
