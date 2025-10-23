@@ -1,8 +1,13 @@
 # get_gpu_instance_id.py
 import wmi
 import sys
-from private_consts import MY_GPU_INSTANCE_ID
-print(f"MY_GPU_INSTANCE_ID: {MY_GPU_INSTANCE_ID}")
+from dotenv import load_dotenv
+import os
+
+load_dotenv(dotenv_path='.env')
+
+my_gpu_instance_id = os.getenv('MY_GPU_INSTANCE_ID')
+print(f"MY_GPU_INSTANCE_ID: {my_gpu_instance_id}")
 
 def get_gpu_instance_id():
     try:
@@ -32,7 +37,7 @@ def get_gpu_instance_id():
                     gpu_name = video.Caption
                     print(f"{display_name} is connected to {gpu_name}")
 
-            if MY_GPU_INSTANCE_ID in display_device_id:
+            if my_gpu_instance_id in display_device_id:
                 if (display_status == 'OK'):
                     print("My GPU is connected and OK.")
                 else :
@@ -41,7 +46,7 @@ def get_gpu_instance_id():
             else :
                 print("ID is not matched.")
                 print(f"Display Device ID:  {display_device_id}")
-                print(f"MY GPU INSTANCE ID: {MY_GPU_INSTANCE_ID}")
+                print(f"MY GPU INSTANCE ID: {my_gpu_instance_id}")
 
     except Exception as e:
         print(f"Error: {e}")

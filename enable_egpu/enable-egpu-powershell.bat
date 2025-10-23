@@ -2,6 +2,11 @@
 chcp 932
 setlocal EnableDelayedExpansion
 
+:: 仮想環境のアクティベーションスクリプトのパス
+for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
+    set "%%A=%%B"
+)
+echo %VENV_ACTIVATION_PATH%
 
 :: ログ設定
 set LOGDIR=logs
@@ -39,7 +44,8 @@ if %errorLevel% neq 0 (
 call :WriteLog "================================"
 call :WriteLog "Start eGPU activation script..."
 
-call "..\..\venv\[your_venv_dir]\Scripts\activate"
+call %VENV_ACTIVATION_PATH%
+
 :: Pythonスクリプトを実行し、出力を変数に保存
 for /f "delims=" %%i in ('python get_gpu_instance_id.py') do (
     set GPU_INSTANCE_ID=%%i
