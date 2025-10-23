@@ -1,3 +1,4 @@
+# get_gpu_instance_id.py
 import wmi
 import sys
 from private_consts import MY_GPU_INSTANCE_ID
