@@ -62,7 +62,7 @@ if not "!GPU_INSTANCE_ID!"=="None" (
 
 :: デバイスの状態を確認と有効化
 call :WriteLog "デバイスを検索して有効化を試みています..."
-powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
+    powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
 
 
 if %errorLevel% equ 0 (
