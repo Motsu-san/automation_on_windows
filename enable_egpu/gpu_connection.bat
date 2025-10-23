@@ -8,6 +8,7 @@ set LOGFILE=application_%date:~0,4%%date:~5,2%%date:~8,2%.log
 set MAX_LOG_SIZE=1048576
 set KEEP_DAYS=7
 set MAX_LOGS=10
+set IS_GPU_CONNECTED=0
 
 cd /d %~dp0
 
@@ -50,6 +51,10 @@ call %VENV_ACTIVATION_PATH%
 for /f "delims=" %%i in ('python get_gpu_instance_id.py') do (
     set GPU_INSTANCE_ID=%%i
     call :WriteLog "!GPU_INSTANCE_ID!"
+
+    if "!GPU_INSTANCE_ID!"=="My GPU is connected and OK." (
+        set IS_GPU_CONNECTED=1
+    )
 )
 
 if not "!GPU_INSTANCE_ID!"=="None" (
@@ -62,19 +67,32 @@ if not "!GPU_INSTANCE_ID!"=="None" (
 
 
 :: デバイスの状態を確認と有効化
-call :WriteLog "デバイスを検索して有効化を試みています..."
 if "%1"=="1" (
+    if %IS_GPU_CONNECTED%==0 (
+        call :WriteLog "GPUは既に無効です。"
+    ) else (
+        call :WriteLog "デバイスを検索して無効化を試みています..."
         powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1"
+        if %errorLevel% equ 0 (
+            call :WriteLog "デバイスの無効化に成功しました。"
+        ) else (
+            call :WriteLog "デバイスの無効化に失敗しました。"
+            call :WriteLog "エラーコード: %errorLevel%"
+        )
+    )
 ) else (
+    if %IS_GPU_CONNECTED%==0 (
+        call :WriteLog "デバイスを検索して有効化を試みています..."
         powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
-)
-
-
         if %errorLevel% equ 0 (
             call :WriteLog "デバイスの有効化に成功しました。"
         ) else (
             call :WriteLog "デバイスの有効化に失敗しました。"
             call :WriteLog "エラーコード: %errorLevel%"
+        )
+    ) else (
+        call :WriteLog "GPUは既に有効です。"
+    )
 )
 
 call :WriteLog "処理が完了しました。"
