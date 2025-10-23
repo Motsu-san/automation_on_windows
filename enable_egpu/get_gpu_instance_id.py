@@ -40,6 +40,7 @@ def get_gpu_instance_id():
             if my_gpu_instance_id in display_device_id:
                 if (display_status == 'OK'):
                     print("My GPU is connected and OK.")
+                    return display_device_id
                 else :
                     print("Something wrong on my GPU")
                     return display_device_id
