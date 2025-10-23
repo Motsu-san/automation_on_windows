@@ -1,7 +1,7 @@
 import wmi
 import sys
-
-MY_GPU_INSTANCE_ID = 'PCI\\HOGE&HOGEHOGE&HOGEHOGEHOGE&HOGEHOGEHOGEHOGE\\0&0000000&0&00000000'
+from private_consts import MY_GPU_INSTANCE_ID
+print(f"MY_GPU_INSTANCE_ID: {MY_GPU_INSTANCE_ID}")
 
 def get_gpu_instance_id():
     try:
