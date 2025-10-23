@@ -56,8 +56,8 @@ if not "!GPU_INSTANCE_ID!"=="None" (
 
 :: デバイスの状態を確認と有効化
 call :WriteLog "デバイスを検索して有効化を試みています..."
-powershell -Command "Disable-PnpDevice -InstanceId '%GPU_INSTANCE_ID%' -Confirm:$false"
-powershell -Command "Enable-PnpDevice -InstanceId '%GPU_INSTANCE_ID%' -Confirm:$false"
+powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
+
 
 if %errorLevel% equ 0 (
     call :WriteLog "デバイスの有効化に成功しました。"
