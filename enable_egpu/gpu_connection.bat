@@ -2,12 +2,6 @@
 chcp 932
 setlocal EnableDelayedExpansion
 
-:: 仮想環境のアクティベーションスクリプトのパス
-for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
-    set "%%A=%%B"
-)
-echo %VENV_ACTIVATION_PATH%
-
 :: ログ設定
 set LOGDIR=logs
 set LOGFILE=application_%date:~0,4%%date:~5,2%%date:~8,2%.log
@@ -16,6 +10,12 @@ set KEEP_DAYS=7
 set MAX_LOGS=10
 
 cd /d %~dp0
+
+:: 仮想環境のアクティベーションスクリプトのパス
+for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
+    set "%%A=%%B"
+)
+echo %VENV_ACTIVATION_PATH%
 
 :: Create log directory if it does not exist
 if not exist %LOGDIR% (
@@ -64,17 +64,17 @@ if not "!GPU_INSTANCE_ID!"=="None" (
 :: デバイスの状態を確認と有効化
 call :WriteLog "デバイスを検索して有効化を試みています..."
 if "%1"=="1" (
-    powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1"
+        powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1"
 ) else (
-    powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
+        powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
 )
 
 
-if %errorLevel% equ 0 (
-    call :WriteLog "デバイスの有効化に成功しました。"
-) else (
-    call :WriteLog "デバイスの有効化に失敗しました。"
-    call :WriteLog "エラーコード: %errorLevel%"
+        if %errorLevel% equ 0 (
+            call :WriteLog "デバイスの有効化に成功しました。"
+        ) else (
+            call :WriteLog "デバイスの有効化に失敗しました。"
+            call :WriteLog "エラーコード: %errorLevel%"
 )
 
 call :WriteLog "処理が完了しました。"
