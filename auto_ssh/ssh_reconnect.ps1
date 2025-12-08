@@ -130,8 +130,70 @@ function Connect-SSH {
                 if ($e.Data -match "(https://[^\s]+\.cloudflareaccess\.com[^\s]+)") {
                     $url = $matches[1]
                     Write-Log "Cloudflare authentication URL detected: $url"
-                    Write-Log "Opening authentication page in browser..."
+                    Write-Log "Opening authentication page in browser and attempting auto-approval..."
+                    
+                    # Open the Cloudflare authentication page
                     Start-Process $url
+                    
+                    # Wait for browser window to open and page to fully load
+                    try {
+                        $shell = New-Object -ComObject WScript.Shell
+                        
+                        # Wait for browser window with Cloudflare title to appear (max 30 seconds)
+                        Write-Log "Waiting for Cloudflare authentication page to load..."
+                        $pageLoaded = $false
+                        $waitTime = 0
+                        $maxPageWait = 30
+                        
+                        while (-not $pageLoaded -and $waitTime -lt $maxPageWait) {
+                            Start-Sleep -Seconds 1
+                            $waitTime++
+                            
+                            # Check if browser window with Cloudflare-related title exists
+                            # This approach checks for active window, assuming browser comes to foreground
+                            try {
+                                $activeWindow = $shell.AppActivate("Cloudflare")
+                                if ($activeWindow) {
+                                    $pageLoaded = $true
+                                    Write-Log "Cloudflare page detected in browser (waited $waitTime seconds)"
+                                }
+                            } catch {
+                                # Window not found yet, continue waiting
+                            }
+                            
+                            # Show progress every 5 seconds
+                            if ($waitTime % 5 -eq 0) {
+                                Write-Log "Still waiting for page to load... ($waitTime/$maxPageWait seconds)"
+                            }
+                        }
+                        
+                        if ($pageLoaded) {
+                            # Page is loaded, wait a bit more for JavaScript to render the button
+                            Write-Log "Page loaded, waiting for button to render..."
+                            Start-Sleep -Seconds 3
+                            
+                            # Ensure browser window is active
+                            $shell.AppActivate("Cloudflare") | Out-Null
+                            Start-Sleep -Milliseconds 500
+                            
+                            # Send Tab keys to navigate to Approve button (adjust count if needed)
+                            # Typically 1-3 tabs reach the Approve button
+                            1..3 | ForEach-Object {
+                                $shell.SendKeys("{TAB}")
+                                Start-Sleep -Milliseconds 500
+                            }
+                            
+                            # Press Enter to click the focused button
+                            $shell.SendKeys("{ENTER}")
+                            Write-Log "Auto-click attempt completed (sent TAB + ENTER keys)"
+                        } else {
+                            Write-Log "Page load timeout after $maxPageWait seconds, manual approval may be required"
+                        }
+                        
+                        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+                    } catch {
+                        Write-Log "Auto-click failed, manual approval may be required: $_"
+                    }
                 }
             }
         }
@@ -143,18 +205,24 @@ function Connect-SSH {
             $process.BeginErrorReadLine()
             Write-Log "SSH process started (PID: $($process.Id))"
 
-            # Wait for connection to establish (max 30 seconds)
+            # Wait for connection to establish (max 120 seconds to allow for Cloudflare authentication)
+            Write-Log "Waiting for SSH connection and port forwarding to establish..."
             $waitCount = 0
-            while ($waitCount -lt 30 -and -not (Test-SSHTunnelActive)) {
+            $maxWait = 120
+            while ($waitCount -lt $maxWait -and -not (Test-SSHTunnelActive)) {
                 Start-Sleep -Seconds 1
                 $waitCount++
+                # Show progress every 10 seconds
+                if ($waitCount % 10 -eq 0) {
+                    Write-Log "Still waiting... ($waitCount/$maxWait seconds elapsed)"
+                }
             }
 
             if (Test-SSHTunnelActive) {
                 Write-SuccessLog "SSH connection established, port forwarding (3956 -> RDP 3389) is active"
                 return $process
             } else {
-                Write-ErrorLog "Failed to establish port forwarding"
+                Write-ErrorLog "Failed to establish port forwarding after $maxWait seconds (may require Cloudflare authentication)"
                 Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
                 return $null
             }
