@@ -12,29 +12,41 @@ if (!(Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir | Out-Null
 }
 
-# ログ出力関数
+### Log output functions with error handling
 function Write-Log {
     param($Message)
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] $Message"
-    Write-Host $logMessage -ForegroundColor Cyan
-    Add-Content -Path $LOG_FILE -Value $logMessage
+    try {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logMessage = "[$timestamp] $Message"
+        Write-Host $logMessage -ForegroundColor Cyan
+        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "[ERROR] Failed to write log: $_" -ForegroundColor Red
+    }
 }
 
 function Write-ErrorLog {
     param($Message)
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] ERROR: $Message"
-    Write-Host $logMessage -ForegroundColor Red
-    Add-Content -Path $LOG_FILE -Value $logMessage
+    try {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logMessage = "[$timestamp] ERROR: $Message"
+        Write-Host $logMessage -ForegroundColor Red
+        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "[ERROR] Failed to write error log: $_" -ForegroundColor Red
+    }
 }
 
 function Write-SuccessLog {
     param($Message)
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] SUCCESS: $Message"
-    Write-Host $logMessage -ForegroundColor Green
-    Add-Content -Path $LOG_FILE -Value $logMessage
+    try {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logMessage = "[$timestamp] SUCCESS: $Message"
+        Write-Host $logMessage -ForegroundColor Green
+        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "[ERROR] Failed to write success log: $_" -ForegroundColor Red
+    }
 }
 
 ### Check if port 3956 is in use (verifies SSH connection is alive)
@@ -195,44 +207,54 @@ if ($null -eq $sshProcess) {
 
 Write-Log "Note: Other SSH connections (e.g. VS Code) are not affected"
 
+# Robust main loop with error handling
 while ($true) {
-    # Check both process and port forwarding
-    $processRunning = Test-ProcessRunning -Process $sshProcess
-    $tunnelActive = Test-SSHTunnelActive
+    try {
+        # Check both process and port forwarding
+        $processRunning = Test-ProcessRunning -Process $sshProcess
+        $tunnelActive = Test-SSHTunnelActive
 
-    if (-not $processRunning -or -not $tunnelActive) {
-        if (-not $processRunning) {
-            Write-ErrorLog "SSH process has stopped"
-        }
-        if (-not $tunnelActive) {
-            Write-ErrorLog "Port forwarding is inactive"
-        }
+        if (-not $processRunning -or -not $tunnelActive) {
+            if (-not $processRunning) {
+                Write-ErrorLog "SSH process has stopped"
+            }
+            if (-not $tunnelActive) {
+                Write-ErrorLog "Port forwarding is inactive"
+            }
 
-        $consecutiveFailures++
+            $consecutiveFailures++
 
-        if ($consecutiveFailures -le $MAX_RETRIES) {
-            Write-Log "Attempting to reconnect... (Failures: $consecutiveFailures/$MAX_RETRIES)"
-            Start-Sleep -Seconds $RECONNECT_DELAY
-            $sshProcess = Connect-SSH -RetryCount $consecutiveFailures -PreviousProcess $sshProcess
+            if ($consecutiveFailures -le $MAX_RETRIES) {
+                Write-Log "Attempting to reconnect... (Failures: $consecutiveFailures/$MAX_RETRIES)"
+                Start-Sleep -Seconds $RECONNECT_DELAY
+                $sshProcess = Connect-SSH -RetryCount $consecutiveFailures -PreviousProcess $sshProcess
 
-            if ($null -ne $sshProcess -and (Test-SSHTunnelActive)) {
+                if ($null -ne $sshProcess -and (Test-SSHTunnelActive)) {
+                    $consecutiveFailures = 0
+                    Write-SuccessLog "Reconnected successfully"
+                }
+            } else {
+                Write-ErrorLog "Failed $MAX_RETRIES times consecutively. Waiting $CHECK_INTERVAL seconds before reset..."
                 $consecutiveFailures = 0
-                Write-SuccessLog "Reconnected successfully"
+                Start-Sleep -Seconds $CHECK_INTERVAL
             }
         } else {
-            Write-ErrorLog "Failed $MAX_RETRIES times consecutively. Waiting $CHECK_INTERVAL seconds before reset..."
-            $consecutiveFailures = 0
-            Start-Sleep -Seconds $CHECK_INTERVAL
+            # Connection is stable
+            if ($consecutiveFailures -gt 0) {
+                # First check after recovery
+                Write-SuccessLog "Connection is stable"
+                $consecutiveFailures = 0
+            }
+            Write-Log "Connection status: OK (PID: $($sshProcess.Id), Port: 3956 forwarding active)"
         }
-    } else {
-        # Connection is stable
-        if ($consecutiveFailures -gt 0) {
-            # First check after recovery
-            Write-SuccessLog "Connection is stable"
-            $consecutiveFailures = 0
-        }
-        Write-Log "Connection status: OK (PID: $($sshProcess.Id), Port: 3956 forwarding active)"
-    }
 
-    Start-Sleep -Seconds $CHECK_INTERVAL
+        Start-Sleep -Seconds $CHECK_INTERVAL
+    } catch {
+        $errorMsg = "Unexpected error in main loop: $_ | $($_.Exception.Message) | Line: $($_.InvocationInfo.ScriptLineNumber)"
+        Write-ErrorLog $errorMsg
+        Write-Host "[CRITICAL] $errorMsg" -ForegroundColor Magenta
+        Start-Sleep -Seconds 10
+        # Reset SSH process on critical error
+        $sshProcess = $null
+    }
 }
