@@ -116,7 +116,7 @@ function Connect-SSH {
         $processInfo.UseShellExecute = $false
         $processInfo.RedirectStandardOutput = $true
         $processInfo.RedirectStandardError = $true
-        $processInfo.CreateNoWindow = $false
+        $processInfo.CreateNoWindow = $true
 
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = $processInfo
