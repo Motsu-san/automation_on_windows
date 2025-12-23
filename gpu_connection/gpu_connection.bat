@@ -72,7 +72,7 @@ if "%1"=="1" (
         call :WriteLog "GPUは既に無効です。"
     ) else (
         call :WriteLog "デバイスを検索して無効化を試みています..."
-        powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1"
+        powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1" -DeviceInstanceId "%GPU_INSTANCE_ID%"
         if %errorLevel% equ 0 (
             call :WriteLog "デバイスの無効化に成功しました。"
         ) else (
@@ -83,7 +83,7 @@ if "%1"=="1" (
 ) else (
     if %IS_GPU_CONNECTED%==0 (
         call :WriteLog "デバイスを検索して有効化を試みています..."
-        powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1"
+        powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1" -DeviceInstanceId "%GPU_INSTANCE_ID%"
         if %errorLevel% equ 0 (
             call :WriteLog "デバイスの有効化に成功しました。"
         ) else (
