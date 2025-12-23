@@ -1,12 +1,33 @@
-# GPU無効化
-Write-Host "Disabling GPU..."
-Disable-PnpDevice -InstanceId $env:GPU_INSTANCE_ID -Confirm:$false
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$DeviceInstanceId
+)
 
-# 少し待機
+# eGPUリセット
+Write-Host "Device ID: $DeviceInstanceId"
+
+# デバイスの現在の状態を確認
+$currentDevice = Get-PnpDevice -InstanceId $DeviceInstanceId -ErrorAction SilentlyContinue
+if ($null -eq $currentDevice) {
+    Write-Host "Error: Device not found"
+    exit 1
+}
+
+Write-Host "Device Name: $($currentDevice.FriendlyName)"
+Write-Host "Current Status: $($currentDevice.Status)"
+
+Write-Host "`nRemoving device..."
+# デバイスを削除
+& pnputil.exe /remove-device $DeviceInstanceId
+
+# 削除完了を待機
 Start-Sleep -Seconds 2
 
-# GPU有効化
-Write-Host "Enabling GPU..."
-Enable-PnpDevice -InstanceId $env:GPU_INSTANCE_ID -Confirm:$false
+Write-Host "Rescanning PCI bus..."
+# PCIバスを再スキャン
+& pnputil.exe /scan-devices
 
-Write-Host "GPU reset completed"
+# デバイスの再検出とドライバーの初期化を待機
+Start-Sleep -Seconds 3
+
+Write-Host "`nDevice reset completed"
