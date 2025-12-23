@@ -1,0 +1,18 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+*.log
+
+# Configuration (use config.example.ps1 as template)
+config.ps1
+
+# Screenshots
+*.png
+
+# OS files
+.DS_Store
+Thumbs.db
