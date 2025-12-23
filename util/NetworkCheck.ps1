@@ -4,7 +4,7 @@
 # Configuration
 $targetAddress = "1.1.1.1"         # Primary target (Internet connectivity)
 $sshHost = "dpc2302001_rdp"        # SSH host to check (optional, uses ~/.ssh/config)
-$maxDurationSeconds = 120          # Maximum check duration (seconds)
+$maxDurationSeconds = 43200          # Maximum check duration (seconds)
 $checkIntervalSeconds = 5          # Check interval (seconds)
 $eventSource = "NetworkMonitor"    # Event source name
 $eventIdSuccess = 1001             # Event ID for network connection success
@@ -70,7 +70,7 @@ while (((Get-Date) - $startTime).TotalSeconds -lt $maxDurationSeconds) {
         if ($sshHost) {
             Write-Host "Checking SSH host reachability: $sshHost" -ForegroundColor Cyan
             $sshReachable = Test-SSHHostReachable -HostName $sshHost
-            
+
             if ($sshReachable) {
                 Write-Host "SSH host is reachable!" -ForegroundColor Green
                 $sshMessage = "SSH host '$sshHost' is reachable. Ready for SSH connection."
@@ -91,12 +91,12 @@ while (((Get-Date) - $startTime).TotalSeconds -lt $maxDurationSeconds) {
 if (-not $connected) {
     $totalTime = ((Get-Date) - $startTime).TotalSeconds.ToString('0.2')
     Write-Host "Connection failed: Could not connect for $maxDurationSeconds seconds." -ForegroundColor Red
-    
+
     # Write failure event to event log
     $failureMessage = "Failed to connect to network address '$targetAddress' after $totalTime seconds (timeout: $maxDurationSeconds seconds)."
     Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdFailure -EntryType Warning -Message $failureMessage
     Write-Host "Recorded connection failure event (EventID: $eventIdFailure)" -ForegroundColor Yellow
-    
+
     exit 1
 }
 
