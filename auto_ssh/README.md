@@ -19,10 +19,10 @@ First time only, create the configuration file:
 
 ```powershell
 # Create configuration file from template
-Copy-Item "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\config.example.ps1" "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\config.ps1"
+Copy-Item "$env:USERPROFILE\automation_on_windows\auto_ssh\config.example.ps1" "$env:USERPROFILE\automation_on_windows\auto_ssh\config.ps1"
 
 # Edit config.ps1 as needed
-notepad "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\config.ps1"
+notepad "$env:USERPROFILE\automation_on_windows\auto_ssh\config.ps1"
 ```
 
 ### 2. Cloudflare Auto-Approval (Optional)
@@ -31,7 +31,7 @@ If you want to automatically approve Cloudflare authentication, set up the Pytho
 
 ```powershell
 # Setup Python environment (first time only)
-powershell -ExecutionPolicy Bypass -File "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\setup_python_env.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\automation_on_windows\auto_ssh\setup_python_env.ps1"
 ```
 
 **How to find the selector**:
@@ -56,7 +56,7 @@ approve_selectors = [
 
 ```powershell
 # Normal execution (stops when terminal is closed)
-powershell -File "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\ssh_reconnect.ps1"
+powershell -File "$env:USERPROFILE\automation_on_windows\auto_ssh\ssh_reconnect.ps1"
 ```
 
 ### 2. Register with Task Scheduler (Recommended)
@@ -65,7 +65,7 @@ Automatically runs on system startup:
 
 ```powershell
 # Run with administrator privileges
-powershell -ExecutionPolicy Bypass -File "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\setup_task_scheduler.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\automation_on_windows\auto_ssh\setup_task_scheduler.ps1"
 ```
 
 #### Task Management
@@ -88,10 +88,10 @@ Unregister-ScheduledTask -TaskName "SSH_Auto_Reconnect_RDP" -Confirm:$false
 
 ```powershell
 # View today's log
-Get-Content "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\logs\ssh_reconnect_$(Get-Date -Format 'yyyyMMdd').log"
+Get-Content "$env:USERPROFILE\automation_on_windows\auto_ssh\logs\ssh_reconnect_$(Get-Date -Format 'yyyyMMdd').log"
 
 # Monitor log in real-time
-Get-Content "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\logs\ssh_reconnect_$(Get-Date -Format 'yyyyMMdd').log" -Wait -Tail 20
+Get-Content "$env:USERPROFILE\automation_on_windows\auto_ssh\logs\ssh_reconnect_$(Get-Date -Format 'yyyyMMdd').log" -Wait -Tail 20
 ```
 
 Logs are retained for 7 days and old logs are automatically deleted.

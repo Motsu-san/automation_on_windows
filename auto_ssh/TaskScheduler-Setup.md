@@ -6,8 +6,8 @@ This guide explains how to manually set up two scheduled tasks for automated net
 ## Prerequisites
 - Event source `NetworkMonitor` must be registered (see `EventSource-Setup.md`)
 - PowerShell scripts must be in the correct location:
-  - `C:\Users\masahiro.sakamoto\automation_on_windows\util\NetworkCheck.ps1`
-  - `C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\ssh_reconnect.ps1`
+  - `%USERPROFILE%\automation_on_windows\util\NetworkCheck.ps1`
+  - `%USERPROFILE%\automation_on_windows\auto_ssh\ssh_reconnect.ps1`
 
 ## Task 1: Network Connection Check
 
@@ -23,7 +23,7 @@ Monitors network connectivity and logs custom events when the network and SSH ho
    - Click **Create Task** (not "Create Basic Task")
    - Name: `NetworkConnectionCheck`
    - Description: `Checks network connectivity and logs custom event (EventID 1002) when SSH host is reachable.`
-   - User account: `masahiro.sakamoto`
+   - User account: `%USERNAME%` (or your Windows username)
    - Select: **Run only when user is logged on**
 
 3. **Configure Triggers**
@@ -31,7 +31,7 @@ Monitors network connectivity and logs custom events when the network and SSH ho
    **Trigger 1: At log on**
    - Click **Triggers** tab → **New**
    - Begin the task: **At log on**
-   - Specific user: `masahiro.sakamoto`
+   - Specific user: `%USERNAME%` (or your Windows username)
    - Click **OK**
 
    **Trigger 2: On network connection**
@@ -46,7 +46,7 @@ Monitors network connectivity and logs custom events when the network and SSH ho
    - Click **Actions** tab → **New**
    - Action: **Start a program**
    - Program/script: `powershell.exe`
-   - Add arguments: `-ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\Users\masahiro.sakamoto\automation_on_windows\util\NetworkCheck.ps1"`
+   - Add arguments: `-ExecutionPolicy Bypass -WindowStyle Hidden -File "%USERPROFILE%\automation_on_windows\util\NetworkCheck.ps1"`
    - Click **OK**
 
 5. **Configure Settings**
@@ -76,7 +76,7 @@ Automatically starts and maintains SSH connection when EventID 1002 is logged (n
    - Click **Create Task**
    - Name: `SSH-RDP_auto-connect`
    - Description: `Automatically maintain SSH connection via Cloudflare Access. Triggered by network connectivity event.`
-   - User account: `masahiro.sakamoto`
+   - User account: `%USERNAME%` (or your Windows username)
    - Select: **Run only when user is logged on**
 
 2. **Configure Trigger**
@@ -104,7 +104,7 @@ Automatically starts and maintains SSH connection when EventID 1002 is logged (n
    - Click **Actions** tab → **New**
    - Action: **Start a program**
    - Program/script: `powershell.exe`
-   - Add arguments: `-ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\ssh_reconnect.ps1"`
+   - Add arguments: `-ExecutionPolicy Bypass -WindowStyle Hidden -File "%USERPROFILE%\automation_on_windows\auto_ssh\ssh_reconnect.ps1"`
    - Click **OK**
 
 4. **Configure Settings**
@@ -245,7 +245,7 @@ Unregister-ScheduledTask -TaskName "SSH-RDP_auto-connect" -Confirm:$false
 ```powershell
 # Get the current user and script path
 $currentUser = $env:USERNAME
-$scriptPath = "C:\Users\$currentUser\automation_on_windows\auto_ssh\ssh_reconnect.ps1"
+$scriptPath = "$env:USERPROFILE\automation_on_windows\auto_ssh\ssh_reconnect.ps1"
 
 # Verify the script exists
 if (-not (Test-Path $scriptPath)) {
