@@ -162,14 +162,10 @@ If it fails, please approve manually.
 ```
 auto_ssh/
 ├── ssh_reconnect.ps1              # Main script
-├── config.ps1                     # Configuration file
-├── setup_task_scheduler.ps1       # Task Scheduler setup script
+├── config.ps1                     # Configuration file you need to made referring "config.example.ps1"
 ├── cloudflare_approve.py          # Cloudflare auto-approval script (Python)
-├── setup_python_env.ps1           # Python environment setup script
 ├── requirements.txt               # Python dependencies
-├── test_cloudflare_approve.ps1    # Test script
 ├── README.md                      # This file
-├── venv/                          # Python virtual environment (created after setup)
 └── logs/
     └── ssh_reconnect_YYYYMMDD.log # Daily log files
 ```
