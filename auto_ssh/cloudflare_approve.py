@@ -1,6 +1,6 @@
 """
 Cloudflare Access Auto-Approval Script using Playwright
-Usage: python cloudflare_approve.py <auth_url>
+Usage: python cloudflare_approve.py <auth_url> [timeout]
 """
 
 import sys
@@ -8,13 +8,13 @@ import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 
-def approve_cloudflare_access(auth_url: str, timeout: int = 30) -> bool:
+def approve_cloudflare_access(auth_url: str, timeout: int) -> bool:
     """
     Open Cloudflare authentication page and click Approve button
 
     Args:
         auth_url: Cloudflare authentication URL
-        timeout: Maximum wait time in seconds (default: 30)
+        timeout: Maximum wait time in seconds
 
     Returns:
         True if approval succeeded, False otherwise
@@ -114,17 +114,31 @@ def approve_cloudflare_access(auth_url: str, timeout: int = 30) -> bool:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python cloudflare_approve.py <auth_url>")
+        print("Usage: python cloudflare_approve.py <auth_url> [timeout]")
         print("Example: python cloudflare_approve.py https://example.cloudflareaccess.com/cdn-cgi/access/cli")
+        print("Example: python cloudflare_approve.py https://example.cloudflareaccess.com/cdn-cgi/access/cli 120")
         sys.exit(1)
 
     auth_url = sys.argv[1]
 
+    # Get timeout from command line argument, or use default
+    timeout = 60  # Default timeout
+    if len(sys.argv) >= 3:
+        try:
+            timeout = int(sys.argv[2])
+            if timeout <= 0:
+                print("[ERROR] Timeout must be a positive integer")
+                sys.exit(1)
+        except ValueError:
+            print("[ERROR] Timeout must be a valid integer")
+            sys.exit(1)
+
     print("=" * 60)
     print("Cloudflare Access Auto-Approval Script")
     print("=" * 60)
+    print(f"[INFO] Timeout: {timeout} seconds")
 
-    success = approve_cloudflare_access(auth_url)
+    success = approve_cloudflare_access(auth_url, timeout)
 
     if success:
         print("[SUCCESS] Cloudflare authentication approved")
