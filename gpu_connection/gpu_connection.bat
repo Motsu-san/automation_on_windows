@@ -16,7 +16,10 @@ cd /d %~dp0
 for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
     set "%%A=%%B"
 )
-echo %VENV_ACTIVATION_PATH%
+:: 同一 venv: activate 由来の「python」が PATH 上の別物でない保証のため、Scripts\python.exe を明示する
+:: ※ 直後の展開に %VENV% は使えない（パースで空）ので遅延 ! を使う
+set "VENV_PYTHON=!VENV_ACTIVATION_PATH:activate=python.exe!"
+if not exist "!VENV_PYTHON!" set "VENV_PYTHON=!VENV_ACTIVATION_PATH:activate.bat=python.exe!"
 
 :: Create log directory if it does not exist
 if not exist %LOGDIR% (
@@ -45,25 +48,56 @@ if %errorLevel% neq 0 (
 call :WriteLog "================================"
 call :WriteLog "Start eGPU activation script..."
 
-call %VENV_ACTIVATION_PATH%
-
-:: Pythonスクリプトを実行し、出力を変数に保存
-for /f "delims=" %%i in ('python get_gpu_instance_id.py') do (
-    set GPU_INSTANCE_ID=%%i
-    call :WriteLog "!GPU_INSTANCE_ID!"
-
-    if "!GPU_INSTANCE_ID!"=="My GPU is connected and OK." (
-        set IS_GPU_CONNECTED=1
-    )
-)
-
-if not "!GPU_INSTANCE_ID!"=="None" (
-    call :WriteLog "Successfully retrieved my GPU instance ID."
-) else (
-    call :WriteLog "Failed to get my GPU instance ID."
+if not exist "!VENV_PYTHON!" (
+    call :WriteLog "FATAL: Venv Python not found. Expected: !VENV_PYTHON!"
+    call :WriteLog "Fix VENV_ACTIVATION_PATH in .env (e.g. ...\Scripts\activate) or create the venv."
     call :WriteLog "処理が完了しました。"
     exit /b 1
 )
+call :WriteLog "Python.exe used for get_gpu: !VENV_PYTHON!"
+
+call %VENV_ACTIVATION_PATH%
+
+:: Python 結果は last_pnp_id.txt / last_gpu_status.txt（UTF-8 1 行）に出す。
+:: stdout を for /f で扱うと PNP 文字列中の & で cmd 側の解釈が壊れ空になる。
+:: ここは必ず venv の python.exe。単に「python」と書くと別インタプリタ（未 pip）になる場合がある
+"!VENV_PYTHON!" get_gpu_instance_id.py 2> "%LOGDIR%\get_gpu_instance_id.debug.log"
+if %errorlevel% neq 0 (
+    call :WriteLog "get_gpu_instance_id.py failed. See get_gpu_instance_id.debug.log in logs\."
+    call :WriteLog "If ModuleNotFoundError wmi:  !VENV_PYTHON!  -m pip install WMI==1.5.1"
+    call :WriteLog "処理が完了しました。"
+    exit /b 1
+)
+if not exist "last_pnp_id.txt" (
+    call :WriteLog "last_pnp_id.txt missing after Python success."
+    call :WriteLog "処理が完了しました。"
+    exit /b 1
+)
+if not exist "last_gpu_status.txt" (
+    call :WriteLog "last_gpu_status.txt missing after Python success."
+    call :WriteLog "処理が完了しました。"
+    exit /b 1
+)
+for /f "usebackq delims=" %%i in ("last_pnp_id.txt") do set "GPU_INSTANCE_ID=%%i"
+for /f "usebackq" %%A in ("last_gpu_status.txt") do set "IS_GPU_CONNECTED=%%A"
+
+:: 最終行の PNPDeviceID と .env の機種ID（ログで突き合わせ用）
+call :WriteLog "----- GPU ID (for verification)"
+call :WriteLog "MY_GPU_HARDWARE_ID (.env): !MY_GPU_HARDWARE_ID!"
+call :WriteLog "PNPDeviceID (resolved, passed to PowerShell): !GPU_INSTANCE_ID!"
+call :WriteLog "IS_GPU_CONNECTED: !IS_GPU_CONNECTED!  (1=接続+StatusOK)"
+
+if "!GPU_INSTANCE_ID!"=="" (
+    call :WriteLog "Failed: PNPDeviceID is empty after reading last_pnp_id.txt."
+    call :WriteLog "処理が完了しました。"
+    exit /b 1
+)
+if "!GPU_INSTANCE_ID!"=="None" (
+    call :WriteLog "Failed: invalid PNP id in file."
+    call :WriteLog "処理が完了しました。"
+    exit /b 1
+)
+call :WriteLog "Successfully retrieved my GPU instance ID."
 
 
 :: デバイスの状態を確認と有効化
@@ -72,7 +106,7 @@ if "%1"=="1" (
         call :WriteLog "GPUは既に無効です。"
     ) else (
         call :WriteLog "デバイスを検索して無効化を試みています..."
-        powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1" -DeviceInstanceId "%GPU_INSTANCE_ID%"
+        powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1" -DeviceInstanceId "!GPU_INSTANCE_ID!"
         if %errorLevel% equ 0 (
             call :WriteLog "デバイスの無効化に成功しました。"
         ) else (
@@ -83,7 +117,7 @@ if "%1"=="1" (
 ) else (
     if %IS_GPU_CONNECTED%==0 (
         call :WriteLog "デバイスを検索して有効化を試みています..."
-        powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1" -DeviceInstanceId "%GPU_INSTANCE_ID%"
+        powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1" -DeviceInstanceId "!GPU_INSTANCE_ID!"
         if %errorLevel% equ 0 (
             call :WriteLog "デバイスの有効化に成功しました。"
         ) else (

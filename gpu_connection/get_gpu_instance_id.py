@@ -3,19 +3,43 @@
 # マッチには .env の MY_GPU_HARDWARE_ID のみ使う（VEN/DEV/SUBSYS 等で機種を表すプレフィックス）。
 # 同一のハードウェアIDを持つGPUを複数接続する構成では、どのデバイスか特定できないため
 # その場合は使わないこと。
-import wmi
+#
+# 標準出力の「行」を cmd の for /f に渡す方式は、PNP ID に含まる & 等で壊れやすい。
+# 確実にバッチへ渡すため、結果は last_pnp_id.txt / last_gpu_status.txt にUTF-8で書く（gpu_connection 直下）。
+import os
 import sys
 from dotenv import load_dotenv
-import os
+from pathlib import Path
 
-load_dotenv(dotenv_path='.env')
+try:
+    import wmi
+except ImportError as e:
+    print(f"ImportError: {e}", file=sys.stderr)
+    print(f"sys.executable = {sys.executable!r}", file=sys.stderr)
+    print(
+        'Install in THIS interpreter:  "%s" -m pip install "WMI==1.5.1"'
+        % sys.executable,
+        file=sys.stderr,
+    )
+    raise SystemExit(1) from e
 
-# 機種識別用。PnPDeviceID 先頭に含まれる（InstanceId 全体の「\」より前の部分）。
-my_gpu_hardware_id = os.getenv('MY_GPU_HARDWARE_ID')
-print(f"MY_GPU_HARDWARE_ID: {my_gpu_hardware_id}")
+SCRIPT_DIR = Path(__file__).resolve().parent
+OUT_PNP = SCRIPT_DIR / "last_pnp_id.txt"
+OUT_STATUS = SCRIPT_DIR / "last_gpu_status.txt"
+
+load_dotenv(dotenv_path=SCRIPT_DIR / ".env")
+
+# 機種識別用。PnPDeviceID 先頭に含まれる（InstanceId 全体の「\」より手前の部分）。
+my_gpu_hardware_id = os.getenv("MY_GPU_HARDWARE_ID")
+
+
+def _print_dbg(msg: str) -> None:
+    print(msg, file=sys.stderr)
 
 
 def get_gpu_instance_id():
+    if not my_gpu_hardware_id:
+        _print_dbg("MY_GPU_HARDWARE_ID is not set in .env")
     try:
         wmi_instance = wmi.WMI()
         display_info = wmi_instance.query("SELECT * FROM Win32_PnPEntity WHERE PNPClass='Display'")
@@ -25,46 +49,58 @@ def get_gpu_instance_id():
         for video in video_info:
             if video.CurrentNumberOfColors is not None:
                 active_gpu = video.Caption
-        print(f"Active GPU: {active_gpu}")
+        _print_dbg(f"Active GPU: {active_gpu}")
+        _print_dbg(f"MY_GPU_HARDWARE_ID: {my_gpu_hardware_id}")
 
         for display in display_info:
             display_name = display.Caption
             display_device_id = display.PNPDeviceID
             display_status = display.Status
-            print("Display Info =====")
-            print(f"Device Name: {display.Name}")
-            print(f"Device ID: {display.PNPDeviceID}")
-            print(f"Status: {display.Status}")
+            _print_dbg("Display Info =====")
+            _print_dbg(f"Device Name: {display.Name}")
+            _print_dbg(f"Device ID: {display.PNPDeviceID}")
+            _print_dbg(f"Status: {display.Status}")
 
             for video in video_info:
-                print("Video Info =====")
-                print(f"Device ID: {video.PNPDeviceID}")
+                _print_dbg("Video Info =====")
+                _print_dbg(f"Device ID: {video.PNPDeviceID}")
                 if video.PNPDeviceID in display_device_id:
                     gpu_name = video.Caption
-                    print(f"{display_name} is connected to {gpu_name}")
+                    _print_dbg(f"{display_name} is connected to {gpu_name}")
 
             if my_gpu_hardware_id and (my_gpu_hardware_id in display_device_id):
-                if (display_status == 'OK'):
-                    print("My GPU is connected and OK.")
-                    return display_device_id
-                else :
-                    print("Something wrong on my GPU")
-                    return display_device_id
-            else :
-                print("ID is not matched.")
-                print(f"Display Device ID:  {display_device_id}")
-                print(f"MY_GPU_HARDWARE_ID: {my_gpu_hardware_id}")
+                is_ok = display_status == "OK"
+                if is_ok:
+                    _print_dbg("My GPU is connected and OK.")
+                else:
+                    _print_dbg("Something wrong on my GPU")
+                return display_device_id, is_ok
+            else:
+                _print_dbg("ID is not matched.")
+                _print_dbg(f"Display Device ID:  {display_device_id}")
+                _print_dbg(f"MY_GPU_HARDWARE_ID: {my_gpu_hardware_id}")
 
     except Exception as e:
-        print(f"Error: {e}")
-        return None
+        _print_dbg(f"Error: {e}")
+        return None, False
+
+    return None, False
+
 
 if __name__ == "__main__":
-    gpu_id = get_gpu_instance_id()
+    for f in (OUT_PNP, OUT_STATUS):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+    gpu_id, matched_and_ok = get_gpu_instance_id()
     if gpu_id:
-        print(f"{gpu_id}")
-        sys.exit(0)  # 正常終了
+        OUT_PNP.write_text(gpu_id, encoding="utf-8", newline="")
+        OUT_STATUS.write_text("1" if matched_and_ok else "0", encoding="utf-8", newline="")
+        # 人間用の1行。バッチは last_pnp_id.txt を本番利用する
+        _print_dbg(f"Wrote {OUT_PNP.name} (length {len(gpu_id)}) and {OUT_STATUS.name} ({1 if matched_and_ok else 0})")
+        sys.exit(0)
     else:
-        print("Can't get gpu instance id")
-        print(f"{gpu_id}")
-        sys.exit(1)  # エラー終了
+        _print_dbg("Can't get gpu instance id")
+        sys.exit(1)
