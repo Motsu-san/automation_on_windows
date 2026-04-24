@@ -1,5 +1,20 @@
 # Network Connection Check Script
 # Checks connection for up to 2 minutes and records a custom event on success
+#
+# NOTE: In Task Scheduler, use a trigger: "On an event" → Log: Security, Source:
+# Microsoft-Windows-Security-Auditing, Event ID: 4801 (Workstation Unlock). Run this
+# script (or a wrapper) as the task action.
+# This task requires Event ID 4801 (Workstation Unlock) to be logged.
+# By default, this event may NOT be recorded due to audit policy settings.
+#
+# To enable it, configure the following audit policy:
+#   secpol.msc
+#   → Advanced Audit Policy Configuration
+#   → Logon/Logoff
+#   → "Audit Other Logon/Logoff Events" → Check "Success"
+#
+# Without this setting, the task scheduler trigger on Event ID 4801
+# will never fire, even if the trigger is enabled.
 
 # Configuration
 $targetAddress = "1.1.1.1"         # Primary target (Internet connectivity)
@@ -11,10 +26,39 @@ $eventIdSuccess = 1001             # Event ID for network connection success
 $eventIdSshReachable = 1002        # Event ID for SSH host reachable
 $eventIdFailure = 1003             # Event ID for connection failure
 
+# Logging configuration
+$logDir = Join-Path $PSScriptRoot "logs"
+$logFile = Join-Path $logDir ("NetworkCheck_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
+
+# Ensure log directory exists
+if (-not (Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+# Function to write log messages to both console and file
+function Write-Log {
+    param(
+        [string]$Message,
+        [string]$ForegroundColor = "White"
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] $Message"
+    Write-Host $logMessage -ForegroundColor $ForegroundColor
+    Add-Content -Path $logFile -Value $logMessage
+}
+
 # Check if event source exists (should be registered via Register-EventSource.ps1)
-if (-not [System.Diagnostics.EventLog]::SourceExists($eventSource)) {
-    Write-Host "ERROR: Event source '$eventSource' is not registered." -ForegroundColor Red
-    Write-Host "Please run 'Register-EventSource.ps1' as administrator first." -ForegroundColor Yellow
+try {
+    $sourceExists = [System.Diagnostics.EventLog]::SourceExists($eventSource)
+} catch {
+    # If SourceExists fails due to access issues, assume source doesn't exist
+    $sourceExists = $false
+    Write-Log "Warning: Could not verify event source due to access restrictions. Assuming source does not exist." "Yellow"
+}
+
+if (-not $sourceExists) {
+    Write-Log "ERROR: Event source '$eventSource' is not registered." "Red"
+    Write-Log "Please run 'Register-EventSource.ps1' as administrator first." "Yellow"
     exit 1
 }
 
@@ -42,16 +86,16 @@ function Test-SSHHostReachable {
 
 # Record start time
 $startTime = Get-Date
-Write-Host "Starting network connection check: $targetAddress"
+Write-Log "Starting network connection check: $targetAddress"
 if ($sshHost) {
-    Write-Host "SSH host to check: $sshHost"
+    Write-Log "SSH host to check: $sshHost"
 }
-Write-Host "Maximum check duration: $maxDurationSeconds seconds"
+Write-Log "Maximum check duration: $maxDurationSeconds seconds"
 
 # Check loop
 $connected = $false
 while (((Get-Date) - $startTime).TotalSeconds -lt $maxDurationSeconds) {
-    Write-Host "Checking connection... ($(((Get-Date) - $startTime).TotalSeconds.ToString('0.0')) seconds elapsed)"
+    Write-Log "Checking connection... ($(((Get-Date) - $startTime).TotalSeconds.ToString('0.0')) seconds elapsed)"
 
     # Connection test
     $result = Test-Connection -ComputerName $targetAddress -Count 1 -Quiet -ErrorAction SilentlyContinue
@@ -59,25 +103,33 @@ while (((Get-Date) - $startTime).TotalSeconds -lt $maxDurationSeconds) {
     if ($result) {
         $connected = $true
         $elapsedTime = ((Get-Date) - $startTime).TotalSeconds.ToString('0.2')
-        Write-Host "Network connection successful! (after $elapsedTime seconds)" -ForegroundColor Green
+        Write-Log "Network connection successful! (after $elapsedTime seconds)" "Green"
 
         # Write network connection success event
         $message = "Successfully connected to network address '$targetAddress'. Elapsed time: $elapsedTime seconds"
-        Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdSuccess -EntryType Information -Message $message
-        Write-Host "Recorded network connection event (EventID: $eventIdSuccess)" -ForegroundColor Green
+        try {
+            Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdSuccess -EntryType Information -Message $message
+            Write-Log "Recorded network connection event (EventID: $eventIdSuccess)" "Green"
+        } catch {
+            Write-Log "Warning: Could not write to event log due to access restrictions. Event: $message" "Yellow"
+        }
 
         # Check SSH host reachability if configured
         if ($sshHost) {
-            Write-Host "Checking SSH host reachability: $sshHost" -ForegroundColor Cyan
+            Write-Log "Checking SSH host reachability: $sshHost" "Cyan"
             $sshReachable = Test-SSHHostReachable -HostName $sshHost
 
             if ($sshReachable) {
-                Write-Host "SSH host is reachable!" -ForegroundColor Green
+                Write-Log "SSH host is reachable!" "Green"
                 $sshMessage = "SSH host '$sshHost' is reachable. Ready for SSH connection."
-                Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdSshReachable -EntryType Information -Message $sshMessage
-                Write-Host "Recorded SSH reachable event (EventID: $eventIdSshReachable)" -ForegroundColor Green
+                try {
+                    Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdSshReachable -EntryType Information -Message $sshMessage
+                    Write-Log "Recorded SSH reachable event (EventID: $eventIdSshReachable)" "Green"
+                } catch {
+                    Write-Log "Warning: Could not write to event log due to access restrictions. Event: $sshMessage" "Yellow"
+                }
             } else {
-                Write-Host "Warning: SSH host is not reachable yet" -ForegroundColor Yellow
+                Write-Log "Warning: SSH host is not reachable yet" "Yellow"
             }
         }
         break
@@ -90,12 +142,16 @@ while (((Get-Date) - $startTime).TotalSeconds -lt $maxDurationSeconds) {
 # Output result
 if (-not $connected) {
     $totalTime = ((Get-Date) - $startTime).TotalSeconds.ToString('0.2')
-    Write-Host "Connection failed: Could not connect for $maxDurationSeconds seconds." -ForegroundColor Red
+    Write-Log "Connection failed: Could not connect for $maxDurationSeconds seconds." "Red"
 
     # Write failure event to event log
     $failureMessage = "Failed to connect to network address '$targetAddress' after $totalTime seconds (timeout: $maxDurationSeconds seconds)."
-    Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdFailure -EntryType Warning -Message $failureMessage
-    Write-Host "Recorded connection failure event (EventID: $eventIdFailure)" -ForegroundColor Yellow
+    try {
+        Write-EventLog -LogName Application -Source $eventSource -EventId $eventIdFailure -EntryType Warning -Message $failureMessage
+        Write-Log "Recorded connection failure event (EventID: $eventIdFailure)" "Yellow"
+    } catch {
+        Write-Log "Warning: Could not write to event log due to access restrictions. Event: $failureMessage" "Yellow"
+    }
 
     exit 1
 }
