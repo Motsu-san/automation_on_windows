@@ -11,6 +11,11 @@ import shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
+# プロファイルディレクトリのパス（永続化してログイン情報を保存）
+# 環境変数 BROWSER_PROFILE_DIR でカスタマイズ可能
+DEFAULT_PROFILE_DIR = Path(__file__).parent / "browser_profile"
+BROWSER_PROFILE_DIR = Path(os.environ.get("BROWSER_PROFILE_DIR", str(DEFAULT_PROFILE_DIR)))
+
 # Windows API imports for window management
 try:
     import ctypes
@@ -34,8 +39,11 @@ def approve_cloudflare_access(auth_url: str, timeout: int) -> bool:
     print(f"[INFO] Opening Cloudflare authentication page...")
     print(f"[INFO] URL: {auth_url}")
 
-    # Create isolated user data directory to avoid conflicts with other Playwright instances
-    user_data_dir = tempfile.mkdtemp(prefix="playwright_cloudflare_")
+    # 永続的なプロファイルディレクトリを使用（ログイン情報を保存）
+    # プロファイルディレクトリが存在しない場合は作成
+    user_data_dir = str(BROWSER_PROFILE_DIR)
+    BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] Using browser profile: {user_data_dir}")
 
     try:
         with sync_playwright() as p:
@@ -223,13 +231,7 @@ def approve_cloudflare_access(auth_url: str, timeout: int) -> bool:
         traceback.print_exc()
         # Return False instead of raising exception to allow main script to continue
         return False
-    finally:
-        # Clean up temporary user data directory
-        try:
-            if os.path.exists(user_data_dir):
-                shutil.rmtree(user_data_dir, ignore_errors=True)
-        except Exception as cleanup_error:
-            print(f"[DEBUG] Failed to cleanup temp directory: {cleanup_error}")
+    # プロファイルディレクトリは削除しない（永続化してログイン情報を保存）
 
 
 def main():

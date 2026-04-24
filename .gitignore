@@ -15,6 +15,9 @@ auto_ssh/config.py
 # Screenshots
 *.png
 
+# Browser profile (contains login cookies and session data)
+auto_ssh/browser_profile/
+
 # OS files
 .DS_Store
 Thumbs.db
