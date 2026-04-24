@@ -1,11 +1,10 @@
 # get_gpu_instance_id.py
-# PnP の Win32_PnPEntity から、自機のGPUデバイスを引き当て返す。
-# マッチには .env の MY_GPU_HARDWARE_ID のみ使う（VEN/DEV/SUBSYS 等で機種を表すプレフィックス）。
-# 同一のハードウェアIDを持つGPUを複数接続する構成では、どのデバイスか特定できないため
-# その場合は使わないこと。
+# Resolves the PnP device (Win32_PnPEntity) for the configured GPU and returns it.
+# Matching uses only MY_GPU_HARDWARE_ID from .env (VEN/DEV/SUBSYS etc. = hardware id prefix).
+# If multiple GPUs share the same hardware id, this cannot pick one: do not use in that case.
 #
-# 標準出力の「行」を cmd の for /f に渡す方式は、PNP ID に含まる & 等で壊れやすい。
-# 確実にバッチへ渡すため、結果は last_pnp_id.txt / last_gpu_status.txt にUTF-8で書く（gpu_connection 直下）。
+# Piping each stdout line to cmd "for /f" breaks on & inside PnP instance ids.
+# Results are written to last_pnp_id.txt and last_gpu_status.txt (UTF-8, one line each) under gpu_connection.
 import os
 import sys
 from dotenv import load_dotenv
@@ -29,7 +28,7 @@ OUT_STATUS = SCRIPT_DIR / "last_gpu_status.txt"
 
 load_dotenv(dotenv_path=SCRIPT_DIR / ".env")
 
-# 機種識別用。PnPDeviceID 先頭に含まれる（InstanceId 全体の「\」より手前の部分）。
+# Model id: prefix of PnPDeviceID (part of InstanceId before the first backslash).
 my_gpu_hardware_id = os.getenv("MY_GPU_HARDWARE_ID")
 
 
@@ -98,7 +97,7 @@ if __name__ == "__main__":
     if gpu_id:
         OUT_PNP.write_text(gpu_id, encoding="utf-8", newline="")
         OUT_STATUS.write_text("1" if matched_and_ok else "0", encoding="utf-8", newline="")
-        # 人間用の1行。バッチは last_pnp_id.txt を本番利用する
+        # Human-readable summary on stderr; the batch file reads last_pnp_id.txt
         _print_dbg(f"Wrote {OUT_PNP.name} (length {len(gpu_id)}) and {OUT_STATUS.name} ({1 if matched_and_ok else 0})")
         sys.exit(0)
     else:

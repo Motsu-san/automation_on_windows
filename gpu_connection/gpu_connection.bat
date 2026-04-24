@@ -2,7 +2,7 @@
 chcp 932
 setlocal EnableDelayedExpansion
 
-:: ログ設定
+:: Logging
 set LOGDIR=logs
 set LOGFILE=application_%date:~0,4%%date:~5,2%%date:~8,2%.log
 set MAX_LOG_SIZE=1048576
@@ -12,12 +12,12 @@ set IS_GPU_CONNECTED=0
 
 cd /d %~dp0
 
-:: 仮想環境のアクティベーションスクリプトのパス
+:: venv activation script path from .env
 for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
     set "%%A=%%B"
 )
-:: 同一 venv: activate 由来の「python」が PATH 上の別物でない保証のため、Scripts\python.exe を明示する
-:: ※ 直後の展開に %VENV% は使えない（パースで空）ので遅延 ! を使う
+:: Same venv: use Scripts\python.exe so we do not run a different "python" on PATH
+:: (cannot use %VENV% for this; it is expanded at parse time empty ? use delayed !)
 set "VENV_PYTHON=!VENV_ACTIVATION_PATH:activate=python.exe!"
 if not exist "!VENV_PYTHON!" set "VENV_PYTHON=!VENV_ACTIVATION_PATH:activate.bat=python.exe!"
 
@@ -36,11 +36,11 @@ if %COUNT% gtr %MAX_LOGS% (
     for /f "skip=%MAX_LOGS%" %%F in ('dir /B /O-D %LOGDIR%\*.log') do del %LOGDIR%\%%F
 )
 
-:: Administrator Authority Check
+:: Administrator check
 NET SESSION >nul 2>&1
 if %errorLevel% neq 0 (
     call :WriteLog "Administrative privileges are required."
-    call :WriteLog "Right click and select “Run as administrator”."
+    call :WriteLog "Right click the file and select Run as administrator."
     pause
     exit /b 1
 )
@@ -51,100 +51,100 @@ call :WriteLog "Start eGPU activation script..."
 if not exist "!VENV_PYTHON!" (
     call :WriteLog "FATAL: Venv Python not found. Expected: !VENV_PYTHON!"
     call :WriteLog "Fix VENV_ACTIVATION_PATH in .env (e.g. ...\Scripts\activate) or create the venv."
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 call :WriteLog "Python.exe used for get_gpu: !VENV_PYTHON!"
 
 call %VENV_ACTIVATION_PATH%
 
-:: Python 結果は last_pnp_id.txt / last_gpu_status.txt（UTF-8 1 行）に出す。
-:: stdout を for /f で扱うと PNP 文字列中の & で cmd 側の解釈が壊れ空になる。
-:: ここは必ず venv の python.exe。単に「python」と書くと別インタプリタ（未 pip）になる場合がある
+:: Python writes last_pnp_id.txt / last_gpu_status.txt (one UTF-8 line each).
+:: Capturing stdout in "for /f" breaks on & inside PnP strings.
+:: Always use venv python.exe: plain "python" may be another interpreter without WMI
 "!VENV_PYTHON!" get_gpu_instance_id.py 2> "%LOGDIR%\get_gpu_instance_id.debug.log"
 if %errorlevel% neq 0 (
     call :WriteLog "get_gpu_instance_id.py failed. See get_gpu_instance_id.debug.log in logs\."
     call :WriteLog "If ModuleNotFoundError wmi:  !VENV_PYTHON!  -m pip install WMI==1.5.1"
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 if not exist "last_pnp_id.txt" (
     call :WriteLog "last_pnp_id.txt missing after Python success."
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 if not exist "last_gpu_status.txt" (
     call :WriteLog "last_gpu_status.txt missing after Python success."
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 for /f "usebackq delims=" %%i in ("last_pnp_id.txt") do set "GPU_INSTANCE_ID=%%i"
 for /f "usebackq" %%A in ("last_gpu_status.txt") do set "IS_GPU_CONNECTED=%%A"
 
-:: 最終行の PNPDeviceID と .env の機種ID（ログで突き合わせ用）
+:: Verification: PNP id vs MY_GPU_HARDWARE_ID in .env
 call :WriteLog "----- GPU ID (for verification)"
 call :WriteLog "MY_GPU_HARDWARE_ID (.env): !MY_GPU_HARDWARE_ID!"
 call :WriteLog "PNPDeviceID (resolved, passed to PowerShell): !GPU_INSTANCE_ID!"
-call :WriteLog "IS_GPU_CONNECTED: !IS_GPU_CONNECTED!  (1=接続+StatusOK)"
+call :WriteLog "IS_GPU_CONNECTED: !IS_GPU_CONNECTED!  (1=connected+StatusOK)"
 
 if "!GPU_INSTANCE_ID!"=="" (
     call :WriteLog "Failed: PNPDeviceID is empty after reading last_pnp_id.txt."
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 if "!GPU_INSTANCE_ID!"=="None" (
     call :WriteLog "Failed: invalid PNP id in file."
-    call :WriteLog "処理が完了しました。"
+    call :WriteLog "Done."
     exit /b 1
 )
 call :WriteLog "Successfully retrieved my GPU instance ID."
 
 
-:: デバイスの状態を確認と有効化
+:: Device enable/disable
 if "%1"=="1" (
     if %IS_GPU_CONNECTED%==0 (
-        call :WriteLog "GPUは既に無効です。"
+        call :WriteLog "GPU is already disabled."
     ) else (
-        call :WriteLog "デバイスを検索して無効化を試みています..."
+        call :WriteLog "Locating device and attempting to disable..."
         powershell -ExecutionPolicy Bypass -File "disable_gpu.ps1" -DeviceInstanceId "!GPU_INSTANCE_ID!"
         if %errorLevel% equ 0 (
-            call :WriteLog "デバイスの無効化に成功しました。"
+            call :WriteLog "Device disabled successfully."
         ) else (
-            call :WriteLog "デバイスの無効化に失敗しました。"
-            call :WriteLog "エラーコード: %errorLevel%"
+            call :WriteLog "Failed to disable the device."
+            call :WriteLog "Error code: %errorLevel%"
         )
     )
 ) else (
     if %IS_GPU_CONNECTED%==0 (
-        call :WriteLog "デバイスを検索して有効化を試みています..."
+        call :WriteLog "Locating device and attempting to enable..."
         powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1" -DeviceInstanceId "!GPU_INSTANCE_ID!"
         if %errorLevel% equ 0 (
-            call :WriteLog "デバイスの有効化に成功しました。"
+            call :WriteLog "Device enabled successfully."
         ) else (
-            call :WriteLog "デバイスの有効化に失敗しました。"
-            call :WriteLog "エラーコード: %errorLevel%"
+            call :WriteLog "Failed to enable the device."
+            call :WriteLog "Error code: %errorLevel%"
         )
     ) else (
-        call :WriteLog "GPUは既に有効です。"
+        call :WriteLog "GPU is already enabled (connected and Status OK)."
     )
 )
 
-call :WriteLog "処理が完了しました。"
+call :WriteLog "Done."
 
 endlocal
 
 
-:: ログ出力とサイズチェックを行う関数
+:: Append a line to the log and rotate the file if it grows too large
 :WriteLog
 if "%~1"=="" (
-    echo エラー: ログメッセージが指定されていません
+    echo Error: no log message
     exit /b 1
 )
 set "MESSAGE=%~1"
 echo !MESSAGE!
 echo [%date% %time%] !MESSAGE! >> %LOGDIR%\%LOGFILE%
 
-:: サイズチェック
+:: Rotate if at size cap
 for %%F in (%LOGDIR%\%LOGFILE%) do set SIZE=%%~zF
 if !SIZE! geq %MAX_LOG_SIZE% (
     set "TIMESTAMP=%time::=-%"
