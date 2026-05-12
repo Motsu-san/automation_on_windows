@@ -28,11 +28,27 @@ $eventIdFailure = 1003             # Event ID for connection failure
 
 # Logging configuration
 $logDir = Join-Path $PSScriptRoot "logs"
-$logFile = Join-Path $logDir ("NetworkCheck_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
+$logRetentionDays = 14                  # Delete NetworkCheck_*.log files older than this at startup
 
 # Ensure log directory exists
 if (-not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+# Remove log files older than retention (2 weeks)
+$logCutoff = (Get-Date).AddDays(-$logRetentionDays)
+Get-ChildItem -Path $logDir -File -Filter "NetworkCheck_*.log" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -lt $logCutoff } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
+# Log path: append to today's file if present, otherwise create a new timestamped file
+$logDayStamp = Get-Date -Format "yyyyMMdd"
+$todayLogFilter = "NetworkCheck_$logDayStamp*.log"
+$todayLogs = @(Get-ChildItem -Path $logDir -File -Filter $todayLogFilter -ErrorAction SilentlyContinue)
+if ($todayLogs.Count -gt 0) {
+    $logFile = ($todayLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+} else {
+    $logFile = Join-Path $logDir ("NetworkCheck_" + $logDayStamp + "_" + (Get-Date -Format "HHmmss") + ".log")
 }
 
 # Function to write log messages to both console and file
