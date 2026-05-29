@@ -27,3 +27,4 @@ Thumbs.db
 # gpu_connection: runtime PNP result files (get_gpu_instance_id.py)
 gpu_connection/last_pnp_id.txt
 gpu_connection/last_gpu_status.txt
+gpu_connection/.env
