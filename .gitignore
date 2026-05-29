@@ -28,3 +28,5 @@ Thumbs.db
 gpu_connection/last_pnp_id.txt
 gpu_connection/last_gpu_status.txt
 gpu_connection/.env
+
+.vscode/
