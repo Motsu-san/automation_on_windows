@@ -80,3 +80,13 @@ MY_GPU_HARDWARE_ID=PCI\VEN_XXXX&DEV_XXXX&SUBSYS_XXXXXXXX&REV_XX\...
 **GPU not found (`last_pnp_id.txt` not generated)**
 
 Check `logs\get_gpu_instance_id.debug.log` and verify that `MY_GPU_HARDWARE_ID` is a substring of the GPU's PNPDeviceID.
+
+**`schtasks /run` returns "The system cannot find the file specified."**
+
+If the task is registered under a subfolder in Task Scheduler (e.g. `User`), the folder path must be included in the task name:
+
+```cmd
+schtasks /run /TN "\User\eGPU_Enabler_Specific"
+```
+
+Check the task's location in Task Scheduler (`taskschd.msc`) and prefix the task name with `\FolderName\`.
