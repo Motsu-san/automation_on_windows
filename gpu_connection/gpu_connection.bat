@@ -9,6 +9,7 @@ set MAX_LOG_SIZE=1048576
 set KEEP_DAYS=7
 set MAX_LOGS=10
 set IS_GPU_CONNECTED=0
+set "AHK_EXE=%LOCALAPPDATA%\Programs\AutoHotkey\v2\AutoHotkey64.exe"
 
 cd /d %~dp0
 
@@ -117,6 +118,7 @@ if "%1"=="1" (
 ) else (
     if %IS_GPU_CONNECTED%==0 (
         call :WriteLog "Locating device and attempting to enable..."
+        if exist "!AHK_EXE!" start "" /B "!AHK_EXE!" "%~dp0dismiss_loadlibrary_error.ahk"
         powershell -ExecutionPolicy Bypass -File "reset_gpu.ps1" -DeviceInstanceId "!GPU_INSTANCE_ID!"
         if %errorLevel% equ 0 (
             call :WriteLog "Device enabled successfully."

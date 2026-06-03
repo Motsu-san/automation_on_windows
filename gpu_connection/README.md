@@ -13,6 +13,7 @@ The GPU sometimes stops being recognized even when connected and enabled; this r
 | `disable_gpu.ps1` | Removes the GPU device only (for disable) |
 | `.env` | Configuration file (create from `.env_sample`) |
 | `reset_egpu_connection.lnk` | Shortcut to `gpu_connection.bat` |
+| `dismiss_loadlibrary_error.ahk` | AutoHotkey script that auto-dismisses the "LoadLibrary failed with error 87" popup on GPU enable (auto-exits after 30 seconds) |
 
 ## How It Works
 
@@ -28,6 +29,7 @@ Confirmed on Windows 11
 - Python 3.12.0
 - pip 23.2.1
 - Uses venv
+- AutoHotkey v2.0.26 (required for auto-dismissing the LoadLibrary error popup on GPU enable)
 
 ## Setup
 
