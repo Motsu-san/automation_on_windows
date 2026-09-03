@@ -1,7 +1,7 @@
 # Event Source Registration - Setup Guide
 
 ## Overview
-This guide explains how to manually register the `NetworkMonitor` event source in Windows Event Log. This is required before using `NetworkCheck.ps1` for network monitoring and SSH auto-connect functionality.
+This guide explains how to register the `NetworkMonitor` event source in Windows Event Log. This is required before using `util\NetworkCheck.ps1` for network monitoring.
 
 ## Prerequisites
 - Administrator privileges on Windows
@@ -14,11 +14,14 @@ This guide explains how to manually register the `NetworkMonitor` event source i
 2. Click **Yes** on the UAC prompt
 
 ### Step 2: Register the Event Source
-Run the following command in the administrator PowerShell window:
+From the workspace root, run the existing registration script in the administrator PowerShell window:
 
 ```powershell
-New-EventLog -LogName Application -Source NetworkMonitor
+Set-Location "$env:USERPROFILE\automation_on_windows"
+powershell -ExecutionPolicy Bypass -File ".\util\Register-EventSource.ps1"
 ```
+
+The script is safe to run more than once. If the source is already registered, it exits without changing it.
 
 ### Step 3: Verify Registration
 Check if the event source was registered successfully:
@@ -77,5 +80,7 @@ Remove-EventLog -Source NetworkMonitor
 ## Next Steps
 
 After registering the event source:
-1. Run `register_network_tasks.ps1` to set up Task Scheduler automation
-2. The network monitoring and SSH auto-connect will work automatically on system logon and network connection events
+1. Configure a Task Scheduler task to run `util\NetworkCheck.ps1` using the trigger documented at the top of that script (Security log, Event ID 4801 for workstation unlock).
+2. If you use the Python SSH auto-reconnect task, register it separately with `auto_ssh\register_task_python.ps1`.
+
+`register_network_tasks.ps1` does not exist in this workspace. The older `util\setup_task_scheduler.ps1` also targets the removed PowerShell SSH script, so do not use it for the current Python setup.
