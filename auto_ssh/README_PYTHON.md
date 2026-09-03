@@ -10,10 +10,20 @@ PowerShellからPythonスクリプトを呼び出してもブラウザウィン�
 
 ## セットアップ
 
+### 0. 仮想環境の作成（推奨）
+
+ワークスペースのルート（`automation_on_windows`）で実行してください:
+
+```powershell
+Set-Location "$env:USERPROFILE\automation_on_windows"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
 ### 1. 依存関係のインストール
 
 ```powershell
-pip install -r requirements.txt
+pip install -r .\auto_ssh\requirements.txt
 ```
 
 必要なライブラリ:
@@ -23,10 +33,10 @@ pip install -r requirements.txt
 
 ### 2. 設定ファイルの作成
 
-`config.py.example`を`config.py`にコピーして設定を編集してください:
+`auto_ssh\config_example.py`を`auto_ssh\config.py`にコピーして設定を編集してください:
 
 ```powershell
-Copy-Item config.py.example config.py
+Copy-Item .\auto_ssh\config_example.py .\auto_ssh\config.py
 ```
 
 `config.py`を編集して、以下の設定を変更してください:
@@ -44,7 +54,7 @@ LOG_DIR = "..."  # ログディレクトリのパス
 初回実行時にPlaywrightのブラウザをインストールする必要があります:
 
 ```powershell
-playwright install chromium
+python -m playwright install chromium
 ```
 
 ## 使用方法
@@ -52,21 +62,25 @@ playwright install chromium
 ### 直接実行
 
 ```powershell
-python ssh_reconnect.py
+python .\auto_ssh\ssh_reconnect.py
 ```
 
 ### タスクスケジューラーでの実行
 
 **詳細な設定手順は `TaskScheduler-Setup-Python.md` を参照してください。**
 
-#### 簡単な方法: PowerShellスクリプトで自動登録
+#### PowerShellで自動登録
+
+管理者としてPowerShellを開き、ワークスペースのルートで以下を実行してください。既存の同名タスクがある場合は削除して再登録します。ログオン時と `NetworkMonitor` の Event ID `1002` で起動します。
 
 ```powershell
-# 管理者権限で実行（推奨）
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\automation_on_windows\auto_ssh\register_task_python.ps1"
+Set-Location "$env:USERPROFILE\automation_on_windows"
+powershell -ExecutionPolicy Bypass -File ".\auto_ssh\register_task_python.ps1"
 ```
 
-#### 手動設定の要点
+GUIで手動設定する場合は、`TaskScheduler-Setup-Python.md`を参照してください。
+
+手動設定の要点
 
 タスクスケジューラーで実行する場合、以下の設定が重要です:
 

@@ -5,20 +5,24 @@ Python版`ssh_reconnect.py`をタスクスケジューラーで実行するた�
 ## 前提条件
 
 1. Pythonがインストールされていること
-2. 依存関係がインストールされていること: `pip install -r requirements.txt`
+2. 依存関係がインストールされていること: `pip install -r .\auto_ssh\requirements.txt`
 3. `config.py`が作成・設定されていること
-4. Playwrightブラウザがインストールされていること: `playwright install chromium`
+4. Playwrightブラウザがインストールされていること: `python -m playwright install chromium`
 
 ## Python実行ファイルのパス確認
 
 まず、使用するPython実行ファイルのパスを確認してください:
 
 ```powershell
-# システムのPython
-where python
+# PowerShellでは `where` ではなく `Get-Command` を使用
+Get-Command python
 
-# または仮想環境のPython（使用している場合）
-# 例: C:\Users\masahiro.sakamoto\venv\venv_script\Scripts\python.exe
+# またはWindowsのwhere.exeを明示
+where.exe python
+
+# このワークスペースの仮想環境
+Test-Path "$env:USERPROFILE\automation_on_windows\.venv\Scripts\python.exe"
+& "$env:USERPROFILE\automation_on_windows\.venv\Scripts\python.exe" --version
 ```
 
 ## タスクスケジューラー設定手順
@@ -36,6 +40,7 @@ where python
 #### 3. 全般タブの設定
 
 - **名前**: `SSH-RDP_auto-connect-Python`
+- **場所**: `\User\`（タスクスケジューラの「User」フォルダ）
 - **説明**: `Automatically maintain SSH connection via Cloudflare Access (Python version)`
 - **セキュリティオプション**:
   - ✅ **ユーザーがログオンしているときのみ実行する**（重要！GUIアプリケーションを表示するため）
@@ -82,19 +87,21 @@ where python
 - **プログラム/スクリプト**: Python実行ファイルの**フルパス**を入力
   - **重要**: コンソールウィンドウを非表示にするため、`pythonw.exe`を使用してください
   - 例: `C:\Python39\pythonw.exe`（`python.exe`ではなく`pythonw.exe`）
-  - 例（仮想環境）: `C:\Users\masahiro.sakamoto\venv\venv_script\Scripts\pythonw.exe`
+  - このワークスペース: `C:\Users\[your_username]\automation_on_windows\.venv\Scripts\pythonw.exe`
 - **引数の追加**: `ssh_reconnect.py`の**フルパス**を入力
-  - 例: `"C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\ssh_reconnect.py"`
+  - 例: `"C:\Users\[your_username]\automation_on_windows\auto_ssh\ssh_reconnect.py"`
   - **重要**: パスにスペースが含まれる場合は、ダブルクォートで囲む
 - **開始場所（オプション）**: `ssh_reconnect.py`があるディレクトリの**フルパス**
-  - 例: `C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh`
+  - 例: `C:\Users\[your_username]\automation_on_windows\auto_ssh`
 - 「**OK**」をクリック
+
+**注意**: 操作タブはPowerShellではないため、`$env:USERPROFILE`や`$env:USERNAME`は展開されません。GUIには実際のユーザープロファイルパスを入力してください。`$env:USERPROFILE`が使えるのは、下記のPowerShellコードをPowerShellで実行する場合です。
 
 **設定例**:
 ```
 プログラム/スクリプト: C:\Python39\pythonw.exe  （python.exeではなくpythonw.exe）
-引数の追加: "C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh\ssh_reconnect.py"
-開始場所: C:\Users\masahiro.sakamoto\automation_on_windows\auto_ssh
+引数の追加: "C:\Users\[your_username]\automation_on_windows\auto_ssh\ssh_reconnect.py"
+開始場所: C:\Users\[your_username]\automation_on_windows\auto_ssh
 ```
 
 **注意**: `pythonw.exe`を使用することで、コンソールウィンドウが表示されません。
@@ -120,84 +127,20 @@ where python
 
 ### 方法2: PowerShellで自動設定
 
-以下のPowerShellスクリプトを実行すると、タスクスケジューラーに自動登録されます:
+管理者としてPowerShellを開き、`register_task_python.ps1`を実行すると、タスクスケジューラーの `User` フォルダに自動登録されます。スクリプトは、このファイル自身の場所からワークスペースと `.venv` を解決し、`NetworkMonitor` の Event ID `1002` でも起動するように設定します。
 
 ```powershell
-# Python実行ファイルのパスを確認・設定
-# pythonw.exeを使用してコンソールウィンドウを非表示にする
-$pythonExe = (Get-Command python).Source
-# python.exeをpythonw.exeに置き換える
-$pythonwExe = $pythonExe -replace 'python\.exe$', 'pythonw.exe'
-if (Test-Path $pythonwExe) {
-    $pythonExe = $pythonwExe
-}
-
-# または、仮想環境のPythonを使用する場合
-# $pythonExe = "C:\Users\masahiro.sakamoto\venv\venv_script\Scripts\pythonw.exe"
-
-# スクリプトのパス
-$scriptPath = "$env:USERPROFILE\automation_on_windows\auto_ssh\ssh_reconnect.py"
-$scriptDir = Split-Path -Parent $scriptPath
-
-# スクリプトの存在確認
-if (-not (Test-Path $scriptPath)) {
-    Write-Error "Script not found at: $scriptPath"
-    exit 1
-}
-
-# タスクの作成
-$taskName = "SSH-RDP_auto-connect-Python"
-$currentUser = $env:USERNAME
-
-# アクションの作成
-$action = New-ScheduledTaskAction `
-    -Execute $pythonExe `
-    -Argument "`"$scriptPath`"" `
-    -WorkingDirectory $scriptDir
-
-# トリガーの作成（ログオン時）
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
-
-# プリンシパルの作成（インタラクティブログオン）
-$principal = New-ScheduledTaskPrincipal `
-    -UserId $currentUser `
-    -LogonType Interactive `
-    -RunLevel Limited
-
-# 設定の作成
-$settings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries `
-    -StartWhenAvailable `
-    -RestartCount 3 `
-    -RestartInterval (New-TimeSpan -Minutes 1) `
-    -ExecutionTimeLimit (New-TimeSpan -Days 1)
-
-# 既存のタスクを削除（存在する場合）
-$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-if ($existingTask) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-}
-
-# タスクの登録
-Register-ScheduledTask `
-    -TaskName $taskName `
-    -Action $action `
-    -Trigger $trigger `
-    -Principal $principal `
-    -Settings $settings `
-    -Description "Automatically maintain SSH connection via Cloudflare Access (Python version). Browser window will be visible."
-
-Write-Host "Task '$taskName' has been registered successfully." -ForegroundColor Green
-Write-Host "Python executable: $pythonExe" -ForegroundColor Gray
-Write-Host "Script path: $scriptPath" -ForegroundColor Gray
+Set-Location "$env:USERPROFILE\automation_on_windows"
+powershell -ExecutionPolicy Bypass -File ".\auto_ssh\register_task_python.ps1"
 ```
+
+既存の同名タスクがある場合は、登録前に削除して再登録します。`User` フォルダのタスクを更新するため、必ず管理者としてPowerShellを実行してください。
 
 ## テスト方法
 
 ### 1. 手動でタスクを実行
 
-1. タスクスケジューラーで`SSH-RDP_auto-connect-Python`タスクを右クリック
+1. タスクスケジューラーの `User` フォルダで `SSH-RDP_auto-connect-Python` タスクを右クリック
 2. 「**実行**」を選択
 3. ブラウザウィンドウが表示されることを確認（Cloudflare認証が必要な場合）
 
@@ -265,32 +208,32 @@ Get-Process -Name ssh -ErrorAction SilentlyContinue | Where-Object {
 
 ```powershell
 # PowerShell版タスクを無効化
-Disable-ScheduledTask -TaskName "SSH-RDP_auto-connect"
+Disable-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect"
 
 # または削除
-Unregister-ScheduledTask -TaskName "SSH-RDP_auto-connect" -Confirm:$false
+Unregister-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect" -Confirm:$false
 ```
 
 ## タスク管理コマンド
 
 ```powershell
 # タスクの開始
-Start-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python"
+Start-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python"
 
 # タスクの停止
-Stop-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python"
+Stop-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python"
 
 # タスクの状態確認
-Get-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python" | Select-Object TaskName, State, LastRunTime, NextRunTime
+Get-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python" | Select-Object TaskName, TaskPath, State, LastRunTime, NextRunTime
 
 # タスクの無効化
-Disable-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python"
+Disable-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python"
 
 # タスクの有効化
-Enable-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python"
+Enable-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python"
 
 # タスクの削除
-Unregister-ScheduledTask -TaskName "SSH-RDP_auto-connect-Python" -Confirm:$false
+Unregister-ScheduledTask -TaskPath "\User\" -TaskName "SSH-RDP_auto-connect-Python" -Confirm:$false
 ```
 
 ## 重要な設定ポイントまとめ
