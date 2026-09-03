@@ -69,7 +69,7 @@ if sys.platform == 'win32':
         # Hide console window if it exists
         kernel32 = ctypes.windll.kernel32
         user32 = ctypes.windll.user32
-        
+
         # Get console window handle
         console_window = kernel32.GetConsoleWindow()
         if console_window:
@@ -95,7 +95,7 @@ except (AttributeError, OSError):
 def setup_logging():
     """Initialize logging directory and file"""
     global log_file
-    
+
     # Create log directory if it doesn't exist
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -116,11 +116,11 @@ def setup_logging():
         except:
             pass
         sys.exit(1)
-    
+
     # Set up log file
     log_filename = f"ssh_reconnect_{datetime.now().strftime('%Y%m%d')}.log"
     log_file = os.path.join(LOG_DIR, log_filename)
-    
+
     # Clean up old log files
     try:
         cutoff_date = datetime.now() - timedelta(days=LOG_RETENTION_DAYS)
@@ -144,17 +144,17 @@ def setup_logging():
                 f.flush()
         except:
             pass
-    
+
     # Load Cloudflare approval module after logging is set up
     _load_cloudflare_module()
-    
+
     return log_file
 
 
 def _load_cloudflare_module():
     """Load Cloudflare approval module"""
     global CLOUDFLARE_MODULE_AVAILABLE, approve_cloudflare_access
-    
+
     if os.path.exists(CLOUDFLARE_SCRIPT_PATH):
         try:
             import importlib.util
@@ -188,16 +188,16 @@ def write_log(message: str, debug: bool = False, error: bool = False, success: b
     """Write log message to file and console"""
     if debug and not DEBUG_MODE:
         return
-    
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     prefix = ""
     if error:
         prefix = "ERROR: "
     elif success:
         prefix = "SUCCESS: "
-    
+
     log_message = f"[{timestamp}] {prefix}{message}"
-    
+
     # Write to console (except debug messages) - only if stdout/stderr are available
     if not debug:
         try:
@@ -209,7 +209,7 @@ def write_log(message: str, debug: bool = False, error: bool = False, success: b
                     print(log_message)
         except (AttributeError, OSError):
             pass  # stdout/stderr might not be available (e.g., pythonw.exe)
-    
+
     # Write to log file (this is the most important part)
     try:
         if log_file:
@@ -230,7 +230,7 @@ def show_notification(title: str, message: str, notification_type: str = "Info")
     if not TOAST_AVAILABLE:
         write_log(f"Notification: {title} - {message}", debug=True)
         return
-    
+
     # Check cooldown
     unique_id = f"SSH-Reconnect-{notification_type}"
     now = time.time()
@@ -239,7 +239,7 @@ def show_notification(title: str, message: str, notification_type: str = "Info")
         if time_since_last < notification_cooldown:
             write_log(f"Skipping duplicate notification: {title} (shown {time_since_last:.1f}s ago)", debug=True)
             return
-    
+
     try:
         toaster = ToastNotifier()
         duration = 5  # seconds
@@ -267,11 +267,11 @@ def test_ssh_tunnel_active() -> bool:
         return False
 
 
-def get_ssh_process() -> Optional[psutil.Process]:
+def get_ssh_process() -> Optional["psutil.Process"]:
     """Find SSH process matching target host"""
     if not PSUTIL_AVAILABLE:
         return None
-    
+
     try:
         matching_processes = []
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -283,7 +283,7 @@ def get_ssh_process() -> Optional[psutil.Process]:
                         write_log(f"Found matching SSH process: PID={proc.info['pid']}, CMDLINE={' '.join(cmdline)}", debug=True)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        
+
         if len(matching_processes) > 1:
             write_log(f"WARNING: Found {len(matching_processes)} SSH processes matching target host '{SSH_HOST}'", error=True)
             # Return the most recent one
@@ -291,7 +291,7 @@ def get_ssh_process() -> Optional[psutil.Process]:
             return matching_processes[0]
         elif len(matching_processes) == 1:
             return matching_processes[0]
-        
+
         return None
     except Exception as e:
         write_log(f"Error finding SSH process: {e}", debug=True)
@@ -302,7 +302,7 @@ def cleanup_old_ssh_processes(keep_pid: Optional[int] = None):
     """Clean up old/zombie SSH processes matching target host"""
     if not PSUTIL_AVAILABLE:
         return
-    
+
     try:
         matching_processes = []
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -315,7 +315,7 @@ def cleanup_old_ssh_processes(keep_pid: Optional[int] = None):
                         matching_processes.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        
+
         if matching_processes:
             write_log(f"Found {len(matching_processes)} old SSH process(es) matching target host", debug=True)
             for proc in matching_processes:
@@ -335,21 +335,21 @@ def cleanup_old_ssh_processes(keep_pid: Optional[int] = None):
 def stop_managed_ssh(process: Optional[subprocess.Popen] = None):
     """Stop the SSH process managed by this script"""
     global ssh_process
-    
+
     if process:
         try:
             ssh_pid = process.pid
             write_log(f"Cleaning up managed SSH connection (PID: {ssh_pid})...")
-            
+
             # Terminate process
             process.terminate()
             try:
                 process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 process.kill()
-            
+
             time.sleep(0.5)
-            
+
             # Verify process was terminated
             if PSUTIL_AVAILABLE:
                 try:
@@ -361,7 +361,7 @@ def stop_managed_ssh(process: Optional[subprocess.Popen] = None):
                 write_log("SSH process terminated")
         except Exception as e:
             write_log(f"Error terminating SSH process: {e}", error=True)
-    
+
     ssh_process = None
 
 
@@ -375,43 +375,43 @@ def monitor_ssh_output(output_file: str):
             while not os.path.exists(output_file) and file_wait_elapsed < file_wait_timeout:
                 time.sleep(1)
                 file_wait_elapsed += 1
-            
+
             if not os.path.exists(output_file):
                 write_log("SSH output file not created within timeout", debug=True)
                 return
-            
+
             time.sleep(2)
-            
+
             # Monitor for Cloudflare URL
             last_position = 0
             url_found = False
             monitoring_timeout = 120
             monitoring_elapsed = 0
             check_interval = 1
-            
+
             while not url_found and monitoring_elapsed < monitoring_timeout:
                 try:
                     if not os.path.exists(output_file):
                         time.sleep(check_interval)
                         monitoring_elapsed += check_interval
                         continue
-                    
+
                     with open(output_file, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
-                    
+
                     if not content:
                         time.sleep(check_interval)
                         monitoring_elapsed += check_interval
                         continue
-                    
+
                     # Split content into lines
                     lines = [line.strip() for line in content.split('\n') if line.strip()]
-                    
+
                     # Check if file has grown
                     if len(lines) > last_position:
                         new_lines = lines[last_position:]
                         last_position = len(lines)
-                        
+
                         for line in new_lines:
                             # Match Cloudflare URL
                             match = re.search(r'(https://[^\s\)]+/cdn-cgi/access/cli[^\s\)]+)', line)
@@ -422,34 +422,34 @@ def monitor_ssh_output(output_file: str):
                                 handle_cloudflare_url(url, timestamp)
                                 url_found = True
                                 break
-                    
+
                     # Log progress every 10 seconds
                     if monitoring_elapsed % 10 == 0:
                         file_size = os.path.getsize(output_file) if os.path.exists(output_file) else 0
                         write_log(f"Monitoring SSH output (elapsed: {monitoring_elapsed}/{monitoring_timeout} seconds, file size: {file_size} bytes, lines: {len(lines)})", debug=True)
-                    
+
                     if url_found:
                         break
-                    
+
                     time.sleep(check_interval)
                     monitoring_elapsed += check_interval
-                
+
                 except Exception as e:
                     write_log(f"Error reading SSH output file: {e}", debug=True)
                     time.sleep(check_interval)
                     monitoring_elapsed += check_interval
-            
+
             if not url_found:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 file_size = os.path.getsize(output_file) if os.path.exists(output_file) else 0
                 write_log(f"Monitoring timeout reached. File size: {file_size} bytes", debug=True)
-        
+
         except Exception as e:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             write_log(f"MONITORING THREAD ERROR: {e}", error=True)
             import traceback
             write_log(f"MONITORING THREAD TRACEBACK: {traceback.format_exc()}", error=True)
-    
+
     thread = threading.Thread(target=monitor, daemon=True)
     thread.start()
     return thread
@@ -459,7 +459,7 @@ def handle_cloudflare_url(url: str, timestamp: str):
     """Handle Cloudflare authentication URL"""
     write_log(f"Cloudflare authentication required: {url}")
     show_notification("Cloudflare Authentication Required", "Please complete authentication in your browser", "CloudflareAuth")
-    
+
     # Try auto-approval using imported function
     # Since we're calling it directly from Python, browser window will be visible
     if CLOUDFLARE_MODULE_AVAILABLE and approve_cloudflare_access:
@@ -469,7 +469,7 @@ def handle_cloudflare_url(url: str, timestamp: str):
             import sys
             import io
             import contextlib
-            
+
             # Create a context manager to suppress stderr
             @contextlib.contextmanager
             def suppress_stderr():
@@ -489,10 +489,10 @@ def handle_cloudflare_url(url: str, timestamp: str):
                                 filtered_output.append(line)
                         if filtered_output:
                             write_log(f"Cloudflare approval stderr: {''.join(filtered_output)}", debug=True)
-            
+
             with suppress_stderr():
                 success = approve_cloudflare_access(url, timeout=120)
-            
+
             if success:
                 write_log("Cloudflare authentication approved automatically", success=True)
                 return
@@ -505,7 +505,7 @@ def handle_cloudflare_url(url: str, timestamp: str):
             # Continue execution even if auto-approval fails
     else:
         write_log("Cloudflare approval module not available, opening URL in browser", debug=True)
-    
+
     # Fallback: Open URL in default browser
     try:
         import webbrowser
@@ -518,26 +518,26 @@ def handle_cloudflare_url(url: str, timestamp: str):
 def connect_ssh(retry_count: int = 0, previous_process: Optional[subprocess.Popen] = None) -> Optional[subprocess.Popen]:
     """Establish SSH connection"""
     global ssh_process, ssh_output_file, monitoring_thread
-    
+
     if retry_count > 0:
         write_log(f"Reconnect attempt {retry_count}/{MAX_RETRIES}...")
     else:
         write_log("Starting SSH connection...")
-    
+
     # Clean up previous process
     stop_managed_ssh(previous_process)
-    
+
     # Clean up old SSH processes
     cleanup_old_ssh_processes()
-    
+
     try:
         # Create temporary file for SSH output monitoring
         ssh_output_file = os.path.join(tempfile.gettempdir(), f"ssh_output_{os.getpid()}_{int(time.time())}.log")
-        
+
         # Start SSH connection
         ssh_command = ["ssh", "-N", SSH_HOST]
         write_log(f"Command: {' '.join(ssh_command)}")
-        
+
         # Start SSH process with stderr redirected to file
         try:
             with open(ssh_output_file, 'w', encoding='utf-8') as f:
@@ -550,23 +550,23 @@ def connect_ssh(retry_count: int = 0, previous_process: Optional[subprocess.Pope
         except Exception as e:
             write_log(f"Failed to start SSH process: {e}", error=True)
             return None
-        
+
         write_log(f"SSH process started (PID: {process.pid})")
         write_log(f"SSH output file: {ssh_output_file}", debug=True)
-        
+
         # Start monitoring thread
         monitoring_thread = monitor_ssh_output(ssh_output_file)
         write_log("SSH output monitoring started", debug=True)
-        
+
         # Wait for connection to establish (max 120 seconds)
         write_log("Waiting for SSH connection and port forwarding to establish...")
         wait_count = 0
         max_wait = 120
-        
+
         while wait_count < max_wait and not test_ssh_tunnel_active():
             time.sleep(1)
             wait_count += 1
-            
+
             # Show progress every 10 seconds
             if wait_count % 10 == 0:
                 write_log(f"Still waiting... ({wait_count}/{max_wait} seconds elapsed)")
@@ -575,16 +575,16 @@ def connect_ssh(retry_count: int = 0, previous_process: Optional[subprocess.Pope
                     write_log(f"SSH process (PID: {process.pid}) terminated unexpectedly during connection wait", error=True)
                     return None
                 write_log(f"SSH process still running (PID: {process.pid})", debug=True)
-        
+
         if test_ssh_tunnel_active():
             write_log("SSH connection established, port forwarding (3956 -> RDP 3389) is active", success=True)
-            
+
             # Show success notification
             if retry_count == 0:
                 show_notification("SSH Connection Established", "SSH connection established successfully\nPort forwarding: 3956 -> RDP 3389", "Success")
             else:
                 show_notification("SSH Reconnected", "SSH connection re-established successfully\nPort forwarding: 3956 -> RDP 3389", "Success")
-            
+
             ssh_process = process
             return process
         else:
@@ -595,7 +595,7 @@ def connect_ssh(retry_count: int = 0, previous_process: Optional[subprocess.Pope
             except subprocess.TimeoutExpired:
                 process.kill()
             return None
-    
+
     except Exception as e:
         write_log(f"SSH connection error: {e}", error=True)
         import traceback
@@ -608,7 +608,7 @@ def test_process_running(process: Optional[subprocess.Popen]) -> bool:
     if process is None:
         write_log("Process check: Process is None", debug=True)
         return False
-    
+
     try:
         if process.poll() is None:
             write_log(f"Process check: PID {process.pid} is running", debug=True)
@@ -624,13 +624,13 @@ def test_process_running(process: Optional[subprocess.Popen]) -> bool:
 def cleanup():
     """Cleanup function for signal handlers"""
     global ssh_process, ssh_output_file
-    
+
     write_log("Cleaning up...", debug=True)
-    
+
     # Stop SSH process
     if ssh_process:
         stop_managed_ssh(ssh_process)
-    
+
     # Clean up temporary files
     if ssh_output_file and os.path.exists(ssh_output_file):
         try:
@@ -642,14 +642,14 @@ def cleanup():
 def main():
     """Main loop"""
     global ssh_process
-    
+
     # Set up logging
     setup_logging()
-    
+
     # Register cleanup handlers
     signal.signal(signal.SIGINT, lambda s, f: cleanup() or sys.exit(0))
     signal.signal(signal.SIGTERM, lambda s, f: cleanup() or sys.exit(0))
-    
+
     # Print startup information
     write_log("=" * 50)
     write_log("SSH auto reconnect script started")
@@ -660,49 +660,49 @@ def main():
     write_log(f"Check interval: {CHECK_INTERVAL} seconds (health check: {HEALTH_CHECK_INTERVAL} seconds)")
     write_log(f"Log file: {log_file}")
     write_log("=" * 50)
-    
+
     ssh_process = None
     consecutive_failures = 0
     connection_status_logged = False  # Track if we've logged connection status
-    
+
     # Initial connection
     ssh_process = connect_ssh()
     if ssh_process is None:
         write_log(f"Initial connection failed. Retrying in {RECONNECT_DELAY} seconds...", error=True)
         time.sleep(RECONNECT_DELAY)
-    
+
     write_log("Note: Other SSH connections (e.g. VS Code) are not affected")
-    
+
     # Main loop
     while True:
         try:
             write_log("Starting health check...", debug=True)
-            
+
             # Check both process and port forwarding
             write_log("Checking process status...", debug=True)
             process_running = test_process_running(ssh_process)
             write_log(f"Process running: {process_running}", debug=True)
-            
+
             write_log("Checking tunnel status...", debug=True)
             tunnel_active = test_ssh_tunnel_active()
             write_log(f"Tunnel active: {tunnel_active}", debug=True)
-            
+
             if not process_running:
                 write_log("SSH process has stopped", error=True)
                 show_notification("SSH Connection Lost", "SSH process has stopped\nAttempting to reconnect...", "Warning")
-            
+
             if not tunnel_active:
                 write_log("Port forwarding is inactive", error=True)
-            
+
             if not process_running or not tunnel_active:
                 consecutive_failures += 1
-                
+
                 if consecutive_failures <= MAX_RETRIES:
                     write_log(f"Attempting to reconnect... (Failures: {consecutive_failures}/{MAX_RETRIES})")
                     time.sleep(RECONNECT_DELAY)
                     previous_process = ssh_process
                     ssh_process = connect_ssh(retry_count=consecutive_failures, previous_process=previous_process)
-                    
+
                     if ssh_process is not None and test_ssh_tunnel_active():
                         consecutive_failures = 0
                         write_log("Reconnected successfully", success=True)
@@ -717,18 +717,18 @@ def main():
                     write_log("Connection is stable", success=True)
                     consecutive_failures = 0
                     connection_status_logged = False  # Reset flag after reconnection
-                
+
                 # Show connection status only once (first time after connection is established)
                 if not connection_status_logged:
                     ssh_pid = ssh_process.pid if ssh_process else 'N/A'
                     write_log(f"Connection status: OK (PID: {ssh_pid}, Port: 3956 forwarding active)")
                     connection_status_logged = True
-            
+
             # Sleep for health check interval (3 seconds)
             write_log(f"Sleeping for {HEALTH_CHECK_INTERVAL} seconds...", debug=True)
             time.sleep(HEALTH_CHECK_INTERVAL)
             write_log("Sleep completed, starting next check...", debug=True)
-        
+
         except KeyboardInterrupt:
             write_log("Interrupted by user")
             cleanup()
